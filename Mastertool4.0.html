@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mastertool.pro — Professional Trading Dashboard</title>
+  <meta name="description" content="Mastertool — automated trading dashboard with live indicators, Deriv integration, TradingView and professional UX." />
+  <style>
+    :root{
+      --primary:#1a237e; --primary-2:#534bae; --accent:#00b894; --muted:#667085;
+      --bg:#f5f7fb; --card:#ffffff; --text:#0f1724; --glass:rgba(255,255,255,0.06);
+      --danger:#e02424; --success:#16a34a; --shadow:0 6px 18px rgba(4,9,20,0.08);
+    }
+    [data-theme="dark"]{ --bg:#0b1220; --card:#0f1724; --text:#e6eef8; --glass:rgba(255,255,255,0.03); }
+
+    *{box-sizing:border-box;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);}
+
+    .app{display:flex;min-height:100vh;}
+    .sidebar{width:280px;background:linear-gradient(180deg,var(--primary),var(--primary-2));color:white;padding:22px;transition:width .28s ease;box-shadow:var(--shadow);overflow-y:auto;}
+    .sidebar.collapsed{width:80px}
+    .sidebar.collapsed .brand-text, .sidebar.collapsed .link span:last-child{display:none}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:18px;margin-bottom:20px}
+    .brand .logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#ffd86b,#ff6b6b);display:flex;align-items:center;justify-content:center;color:#0b1220;font-weight:800;flex-shrink:0}
+    .sidebar .section{margin-top:20px}
+    .link{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;color:rgba(255,255,255,0.95);text-decoration:none;font-weight:600;cursor:pointer;transition:0.2s}
+    .link:hover{background:rgba(255,255,255,0.06);transform:translateX(6px)}
+    .muted{opacity:.85;font-weight:500}
+
+    .main{flex:1;display:flex;flex-direction:column}
+    .topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 26px;background:var(--card);box-shadow:0 2px 8px rgba(2,6,23,0.04);border-bottom:1px solid rgba(0,0,0,0.04)}
+    .top-left{display:flex;align-items:center;gap:10px}
+    .top-actions{display:flex;align-items:center;gap:12px}
+    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:700;transition:0.2s}
+    .btn:hover{opacity:0.85}
+    .btn:disabled{opacity:0.5;cursor:not-allowed}
+    .btn.ghost{background:transparent;border:1px solid rgba(15,23,36,0.06)}
+    .btn.primary{background:linear-gradient(90deg,var(--primary),var(--primary-2));color:white}
+
+    .content{padding:24px;display:grid;grid-template-columns:repeat(12,1fr);gap:16px;flex:1;overflow-y:auto}
+    .card{grid-column:span 4;background:var(--card);padding:18px;border-radius:12px;box-shadow:var(--shadow);transition:0.2s}
+    .card:hover{box-shadow:0 12px 24px rgba(4,9,20,0.12)}
+    .card.large{grid-column:span 8}
+    .card.full{grid-column:span 12}
+
+    .indicator{display:flex;align-items:center;gap:12px}
+    .dot{width:12px;height:12px;border-radius:50%;background:var(--muted);position:relative}
+    .dot.pulse::after{content:"";position:absolute;inset:-6px;border-radius:50%;background:linear-gradient(45deg,rgba(83,74,174,0.18),rgba(26,35,126,0.06));animation:ping 1.8s infinite}
+    @keyframes ping{0%{transform:scale(.8);opacity:1}100%{transform:scale(2);opacity:0}}
+
+    .icon-grad{width:36px;height:36px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#00d4ff,#6b6bff);color:white;font-weight:800;flex-shrink:0}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--glass);font-weight:700;font-size:12px}
+    .pill .status-dot{width:8px;height:8px;border-radius:50%}
+    .small{font-size:13px;color:var(--muted)}
+
+    .search{padding:10px 12px;border-radius:10px;border:1px solid rgba(15,23,36,0.06);min-width:240px;background:var(--card);color:var(--text)}
+    .search::placeholder{color:var(--muted)}
+
+    .footer{padding:14px 24px;text-align:center;color:var(--muted);font-size:13px;border-top:1px solid rgba(0,0,0,0.04)}
+
+    .strategy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+    .strategy-card{padding:12px;border:1px solid rgba(0,0,0,0.1);border-radius:8px;cursor:pointer;transition:0.2s}
+    .strategy-card:hover{background:var(--glass);border-color:var(--accent)}
+    .strategy-card.active{background:var(--accent);color:white;border-color:var(--accent)}
+
+    #logBox{height:160px;overflow-y:auto;background:linear-gradient(180deg,rgba(15,23,36,0.02),transparent);padding:10px;border-radius:8px;font-size:12px;font-family:monospace}
+    #logBox div{margin:4px 0;padding:2px}
+
+    @media (max-width:900px){
+      .sidebar{position:fixed;z-index:40;left:0;top:0;bottom:0;height:100vh}
+      .sidebar.collapsed{transform:translateX(-100%)}
+      .content{padding:12px;grid-template-columns:repeat(6,1fr)}
+      .card.large{grid-column:span 6}
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="logo">M</div>
+        <div class="brand-text">Mastertool<span class="muted">.pro</span></div>
+      </div>
+
+      <div class="section">
+        <a class="link" href="https://app.deriv.com/?redirect=signup" target="_blank">
+          <span class="icon-grad">➕</span><span>Create Account</span>
+        </a>
+        <a class="link" href="https://app.deriv.com/?redirect=login" target="_blank">
+          <span class="icon-grad">🔑</span><span>Sign In</span>
+        </a>
+        <a class="link" href="https://www.tradingview.com/chart/" target="_blank">
+          <span class="icon-grad">📈</span><span>Open TradingView</span>
+        </a>
+      </div>
+
+      <div class="section">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div class="muted" style="font-weight:700">Connection</div>
+          <div id="derivPill" class="pill">
+            <div class="status-dot" id="derivDot" style="background:orange"></div>
+            <div id="derivText" style="font-weight:800">Checking...</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+        <button class="btn ghost" id="toggleSidebar" style="width:100%">Collapse</button>
+        <div style="font-size:12px;opacity:.8">© Mastertool 2025</div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="topbar">
+        <div class="top-left">
+          <button class="btn ghost" id="sidebarToggle">☰</button>
+          <div style="font-weight:800;font-size:18px">Digit Bot</div>
+          <input class="search" id="searchBox" placeholder="Search strategies, bots or markets" />
+        </div>
+
+        <div class="top-actions">
+          <div class="indicator">
+            <div class="dot pulse" style="background:var(--success)"></div>
+            <div class="small">Realtime engine online</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn" id="darkToggle">🌙</button>
+            <button class="btn ghost" id="profileBtn">Profile</button>
+            <button class="btn primary" onclick="window.open('https://app.deriv.com/?redirect=login','_blank')">Trade Now</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Market Overview -->
+        <div class="card large">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div>
+              <div style="font-weight:800;font-size:18px">Market Overview</div>
+              <div class="small">Live prices, volatility and quick actions</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div class="pill">
+                <span class="status-dot" id="exchangeDot" style="background:var(--success)"></span>
+                <span id="exchangeText">Market feed OK</span>
+              </div>
+              <div class="small">Updated: <span id="lastUpdated">—</span></div>
+            </div>
+          </div>
+          <div style="height:320px;border-radius:10px;background:linear-gradient(180deg,rgba(15,23,36,0.02),rgba(15,23,36,0.01));display:flex;align-items:center;justify-content:center;color:var(--muted);" id="tv-widget">
+            TradingView chart placeholder — integrate widget or connect to Deriv live data
+          </div>
+        </div>
+
+        <!-- Bot Status -->
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-weight:800">Bot Status</div>
+            <div class="small">Automations & run history</div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="flex:1">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+                <button class="btn primary" id="runBot">Run Bot</button>
+                <button class="btn ghost" id="stopBot">Stop</button>
+              </div>
+              <div class="small">Last trade: <strong id="lastTrade">—</strong></div>
+              <div class="small">Active Strategy: <strong id="activeStrategy">None</strong></div>
+            </div>
+            <div style="width:180px;text-align:right">
+              <div class="small">Performance</div>
+              <div style="font-weight:800;font-size:20px;color:var(--success)" id="performance">+2.24%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bot Strategies -->
+        <div class="card full">
+          <div style="font-weight:800;margin-bottom:8px">Available Strategies</div>
+          <div class="strategy-grid" id="strategiesGrid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+          <div style="font-weight:800;margin-bottom:8px">Quick Actions</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn ghost" onclick="openTradingView()">Open TradingView</button>
+            <button class="btn ghost" onclick="openDerivLogin()">Deriv Login</button>
+            <button class="btn ghost" onclick="openDerivSignUp()">Create Account</button>
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card full">
+          <div style="font-weight:800;margin-bottom:8px">Activity Logs</div>
+          <div id="logBox">Initializing...</div>
+        </div>
+      </div>
+
+      <div class="footer">All trading involves risk. Mastertool is a platform for automation. Use responsibly.</div>
+    </main>
+  </div>
+
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script>
+    // ============ CONFIG & STATE ============
+    const API_BASE = 'http://localhost:4000';
+    const body = document.body;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const toggleSidebarBtn = document.getElementById('toggleSidebar');
+    const darkToggle = document.getElementById('darkToggle');
+    const derivDot = document.getElementById('derivDot');
+    const derivText = document.getElementById('derivText');
+    const lastUpdated = document.getElementById('lastUpdated');
+    const logBox = document.getElementById('logBox');
+    const runBotBtn = document.getElementById('runBot');
+    const stopBotBtn = document.getElementById('stopBot');
+    const strategiesGrid = document.getElementById('strategiesGrid');
+    const activeStrategyDisplay = document.getElementById('activeStrategy');
+    const performanceDisplay = document.getElementById('performance');
+    const lastTradeDisplay = document.getElementById('lastTrade');
+
+    let socket = null;
+    let botRunning = false;
+    let currentStrategy = null;
+    let tradeHistory = [];
+    let performanceMetrics = { wins: 0, losses: 0, profit: 0 };
+
+    // ============ STRATEGIES ============
+    const STRATEGIES = [
+      {
+        id: 'moving-average',
+        name: 'Moving Average Cross',
+        description: 'Buy when fast MA crosses above slow MA',
+        symbol: 'R_100',
+        params: { fastPeriod: 12, slowPeriod: 26 },
+        enabled: true
+      },
+      {
+        id: 'rsi-oversold',
+        name: 'RSI Oversold',
+        description: 'Buy when RSI < 30, sell when RSI > 70',
+        symbol: 'R_100',
+        params: { period: 14, oversold: 30, overbought: 70 },
+        enabled: true
+      },
+      {
+        id: 'bollinger-bands',
+        name: 'Bollinger Bands',
+        description: 'Buy at lower band, sell at upper band',
+        symbol: 'EURUSD',
+        params: { period: 20, stdDev: 2 },
+        enabled: true
+      },
+      {
+        id: 'martingale',
+        name: 'Martingale (Risk!)',
+        description: 'Double bet after each loss — high risk strategy',
+        symbol: 'R_100',
+        params: { initialBet: 1, maxBets: 5 },
+        enabled: true
+      },
+      {
+        id: 'grid-trading',
+        name: 'Grid Trading',
+        description: 'Place buy/sell orders in a grid pattern',
+        symbol: 'EURUSD',
+        params: { gridLevels: 5, gridSpacing: 50 },
+        enabled: true
+      },
+      {
+        id: 'random-walk',
+        name: 'Random Entry Demo',
+        description: 'Demo: random entry/exit (educational)',
+        symbol: 'R_100',
+        params: { entryChance: 0.4, exitChance: 0.6 },
+        enabled: true
+      }
+    ];
+
+    // ============ THEME ============
+    const theme = localStorage.getItem('mt:theme') || 'light';
+    body.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+    darkToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+
+    // ============ SIDEBAR ============
+    function setCollapsed(collapsed) {
+      if (collapsed) sidebar.classList.add('collapsed');
+      else sidebar.classList.remove('collapsed');
+      localStorage.setItem('mt:sidebarCollapsed', collapsed ? '1' : '0');
+    }
+    const savedCollapsed = localStorage.getItem('mt:sidebarCollapsed') === '1';
+    setCollapsed(savedCollapsed);
+
+    sidebarToggle.onclick = () => setCollapsed(!sidebar.classList.contains('collapsed'));
+    toggleSidebarBtn.onclick = () => setCollapsed(!sidebar.classList.contains('collapsed'));
+
+    // ============ DARK MODE ============
+    darkToggle.onclick = () => {
+      const now = body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      body.setAttribute('data-theme', now);
+      localStorage.setItem('mt:theme', now);
+      darkToggle.textContent = now === 'dark' ? '☀️' : '🌙';
+    };
+
+    // ============ LOGGING ============
+    function pushLog(msg) {
+      const el = document.createElement('div');
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logBox.prepend(el);
+      while (logBox.children.length > 60) logBox.removeChild(logBox.lastChild);
+    }
+
+    // ============ DERIV CONNECTIVITY ============
+    async function checkDeriv() {
+      const start = Date.now();
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(`${API_BASE}/api/deriv/status`, { signal: controller.signal });
+        clearTimeout(timeout);
+        const ms = Date.now() - start;
+        if (res.ok) {
+          derivDot.style.background = 'var(--success)';
+          derivText.textContent = `Connected (${ms}ms)`;
+          pushLog(`Deriv ping OK — ${ms}ms`);
+        } else {
+          throw new Error('Status not OK');
+        }
+      } catch (err) {
+        derivDot.style.background = 'orange';
+        derivText.textContent = 'Checking...';
+        pushLog('Deriv connectivity check — retrying');
+      }
+      lastUpdated.textContent = new Date().toLocaleTimeString();
+    }
+    checkDeriv();
+    setInterval(checkDeriv, 12000);
+
+    // ============ SOCKET.IO ============
+    function initSocket() {
+      socket = io(API_BASE);
+      socket.on('connect', () => {
+        pushLog('Connected to server');
+        derivDot.style.background = 'var(--success)';
+        derivText.textContent = 'Connected';
+      });
+
+      socket.on('deriv:data', (data) => {
+        if (data.tick) {
+          console.log('New tick:', data.tick);
+        }
+        if (data.website_status) {
+          console.log('Website status:', data.website_status);
+        }
+      });
+
+      socket.on('bot:trade', (trade) => {
+        tradeHistory.push(trade);
+        lastTradeDisplay.textContent = `${trade.action} @ ${trade.price}`;
+        if (trade.result === 'win') {
+          performanceMetrics.wins++;
+          performanceMetrics.profit += trade.profit || 0;
+        } else {
+          performanceMetrics.losses++;
+          performanceMetrics.profit -= trade.loss || 0;
+        }
+        updatePerformanceDisplay();
+      });
+
+      socket.on('disconnect', () => {
+        pushLog('Disconnected from server');
+        derivDot.style.background = 'orange';
+        derivText.textContent = 'Disconnected';
+      });
+    }
+
+    // ============ BOT LOGIC ============
+    function runStrategy(strategyId) {
+      const strategy = STRATEGIES.find(s => s.id === strategyId);
+      if (!strategy) return;
+      
+      currentStrategy = strategy;
+      activeStrategyDisplay.textContent = strategy.name;
+      botRunning = true;
+      runBotBtn.disabled = true;
+      stopBotBtn.disabled = false;
+      pushLog(`Started ${strategy.name} on ${strategy.symbol}`);
+
+      // Simulate strategy execution
+      const interval = setInterval(() => {
+        if (!botRunning) {
+          clearInterval(interval);
+          return;
+        }
+
+        // Simulate trade
+        const action = Math.random() > 0.5 ? 'BUY' : 'SELL';
+        const price = (Math.random() * 100 + 50).toFixed(4);
+        const result = Math.random() > 0.4 ? 'win' : 'loss';
+        const profit = (Math.random() * 10).toFixed(2);
+
+        const trade = { action, price, result, profit, strategy: strategy.id, timestamp: new Date() };
+        socket?.emit('bot:trade', trade);
+        pushLog(`${strategy.name}: ${action} @ ${price} (${result.toUpperCase()})`);
+      }, 5000 + Math.random() * 5000);
+    }
+
+    function stopBot() {
+      botRunning = false;
+      runBotBtn.disabled = false;
+      stopBotBtn.disabled = true;
+      activeStrategyDisplay.textContent = 'None';
+      pushLog('Bot stopped');
+    }
+
+    // ============ STRATEGY UI ============
+    function renderStrategies() {
+      strategiesGrid.innerHTML = '';
+      STRATEGIES.forEach(strategy => {
+        const card = document.createElement('div');
+        card.className = 'strategy-card' + (currentStrategy?.id === strategy.id ? ' active' : '');
+        card.innerHTML = `
+          <div style="font-weight:800;font-size:14px">${strategy.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin:8px 0">${strategy.description}</div>
+          <div style="font-size:11px">Symbol: ${strategy.symbol}</div>
+        `;
+        card.onclick = () => {
+          document.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          runStrategy(strategy.id);
+        };
+        strategiesGrid.appendChild(card);
+      });
+    }
+
+    // ============ PERFORMANCE ============
+    function updatePerformanceDisplay() {
+      const winRate = performanceMetrics.wins + performanceMetrics.losses > 0
+        ? ((performanceMetrics.wins / (performanceMetrics.wins + performanceMetrics.losses)) * 100).toFixed(1)
+        : 0;
+      const color = performanceMetrics.profit >= 0 ? 'var(--success)' : 'var(--danger)';
+      performanceDisplay.textContent = `${performanceMetrics.profit > 0 ? '+' : ''}${performanceMetrics.profit.toFixed(2)}% (${winRate}% WR)`;
+      performanceDisplay.style.color = color;
+    }
+
+    // ============ QUICK ACTIONS ============
+    function openTradingView() { window.open('https://www.tradingview.com/chart/', '_blank'); }
+    function openDerivLogin() { window.open('https://app.deriv.com/?redirect=login', '_blank'); }
+    function openDerivSignUp() { window.open('https://app.deriv.com/?redirect=signup', '_blank'); }
+
+    // ============ BOT BUTTON HANDLERS ============
+    runBotBtn.onclick = () => {
+      if (currentStrategy) {
+        runStrategy(currentStrategy.id);
+      } else {
+        pushLog('Please select a strategy first');
+        alert('Please select a strategy to run');
+      }
+    };
+
+    stopBotBtn.onclick = stopBot;
+    stopBotBtn.disabled = true;
+
+    // ============ PROFILE ============
+    document.getElementById('profileBtn')?.addEventListener('click', () => {
+      const token = localStorage.getItem('mt:token');
+      if (token) {
+        alert('You are logged in.\n\nToken: ' + token.substring(0, 20) + '...');
+      } else {
+        alert('Not logged in. Click "Trade Now" to sign in to Deriv.');
+      }
+    });
+
+    // ============ SEARCH ============
+    document.getElementById('searchBox').addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      const cards = document.querySelectorAll('.strategy-card');
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(term) ? 'block' : 'none';
+      });
+    });
+
+    // ============ KEYBOARD SHORTCUT ============
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '`') setCollapsed(!sidebar.classList.contains('collapsed'));
+      if (e.key === ' ' && e.ctrlKey && botRunning) {
+        e.preventDefault();
+        stopBot();
+      }
+    });
+
+    // ============ INIT ============
+    pushLog('Dashboard loaded');
+    pushLog('Realtime engine initialized');
+    renderStrategies();
+    initSocket();
+  </script>
+</body>
+</html>
